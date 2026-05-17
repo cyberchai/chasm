@@ -28,6 +28,8 @@ business profile and state machine, and drives codegen.
 ## AgentPhone integration
 
 - Base URL `https://api.agentphone.ai/v1`. Bearer `AGENTPHONE_API_KEY`.
+- **Agent number: +1 252-713-4488** — owners call this to build; customers call
+  the same number in Act 2. Demo from the whitelisted contact only.
 - Account starts with $5 free credit. Redeem the hackathon codes for numbers:
   `SENDAMESSAGE` (SMS number, skips A2P 10DLC), `AP2IMSG` (shared iMessage line
   — whitelist your own contact after redeeming).
