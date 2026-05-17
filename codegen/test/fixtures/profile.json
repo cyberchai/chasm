@@ -1,0 +1,19 @@
+{
+  "businessId": "demo",
+  "name": "Rose & Thorn",
+  "type": "florist",
+  "vibe": ["cozy", "modern"],
+  "colors": ["#2d5016", "#f5f0e1"],
+  "tagline": "Fresh arrangements, made daily",
+  "products": [
+    { "name": "Spring Bouquet", "price": 4500, "image": "/products/spring.png" },
+    { "name": "Single Rose", "price": 800, "image": "/products/rose.png" },
+    { "name": "Wedding Centerpiece", "price": 12000, "image": "/products/wedding.png" }
+  ],
+  "contact": {
+    "phone": "(252) 713-4488",
+    "address": "14 Garden Lane",
+    "hours": "Mon-Sat 9-6"
+  },
+  "sections": ["hero", "products", "about", "contact", "order"]
+}
