@@ -7,10 +7,24 @@ runnable. `main` stays demoable at all times.
 
 | Person | Owns                                                            |
 |--------|-----------------------------------------------------------------|
-| P1     | `orchestrator/` — AgentPhone webhooks, conversation state machine, profile extraction, ngrok |
+| P1     | `orchestrator/` — AgentPhone webhooks, conversation state machine, profile extraction, ngrok, call routing |
 | P2     | `codegen/` — Claude Agent SDK edit loop, whiteboard PNG ingestion, build-safety |
-| P3     | `template/` + `infra/` — Vite/React site, Stripe Checkout, Stripe Projects, screenshot util |
-| P4     | `whiteboard/` + `merchant-agent/` + image gen                   |
+| P3     | `template/` — Vite/React site, data-driven `content.ts`, Stripe Checkout, screenshot util |
+| P4     | `whiteboard/` — full focus, end to end. Then `merchant-agent/` + image gen in Phase 5. |
+
+`infra/` (Stripe Projects init, secrets, `.gitignore`, run scripts) is **Phase
+0, done together** — not one person's job.
+
+P1 and P2 are the critical path (call → live site). P3 and P4 finish their
+pieces earlier, then pair onto whichever of P1/P2 is behind.
+
+### Dependency order
+
+- P3 ships a **barebones `/template`** in Phase 1 first — P2's `codegen` has
+  nothing to clone until it exists. Enrich the template after.
+- P1 normalizes AgentPhone payloads on day 1 — unblocks everyone downstream.
+- P4's whiteboard is not on the critical path until Phase 3 — runway to build
+  it well.
 
 ## Phase 0 — Setup (everyone, first)
 
