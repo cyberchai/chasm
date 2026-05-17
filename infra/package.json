@@ -1,0 +1,16 @@
+{
+  "name": "@chasm/infra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "tsx screenshot.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3"
+  }
+}

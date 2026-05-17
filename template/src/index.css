@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties (set dynamically by theme.ts) ─── */
+:root {
+  --color-primary: #2d5016;
+  --color-secondary: #f5f0e1;
+  --color-accent: #4a7c2e;
+  --color-surface: #0e0e0e;
+  --color-surface-alt: #1a1a1a;
+  --color-text: #f5f0e1;
+  --color-text-muted: #a8a297;
+  --color-border: #2a2a2a;
+}
+
+/* ─── Global resets ─── */
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Selection ─── */
+::selection {
+  background-color: var(--color-primary);
+  color: var(--color-secondary);
+}
+
+/* ─── Grain texture overlay (gstack-inspired materiality) ─── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* ─── Glassmorphism utility ─── */
+@layer components {
+  .glass {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-hover:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* ─── Scroll-triggered fade-in (used with IntersectionObserver) ─── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Gradient text utility ─── */
+.gradient-text {
+  background: linear-gradient(
+    135deg,
+    var(--color-secondary) 0%,
+    var(--color-accent) 50%,
+    var(--color-secondary) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

@@ -1,0 +1,37 @@
+{
+  "name": "@chasm/template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n vite,api -c green,yellow \"vite\" \"tsx watch server.ts\"",
+    "dev:vite": "vite",
+    "dev:api": "tsx watch server.ts",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "server": "tsx server.ts"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "stripe": "^18.1.0",
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.4",
+    "@types/react-dom": "^19.1.5",
+    "@types/express": "^5.0.2",
+    "@types/cors": "^2.8.18",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.3.5"
+  }
+}

@@ -1,12 +1,24 @@
 {
   "name": "chasm",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Call to create. Agents to operate.",
   "workspaces": [
-    "orchestrator"
+    "shared",
+    "template",
+    "orchestrator",
+    "codegen",
+    "whiteboard",
+    "merchant-agent",
+    "infra"
   ],
   "scripts": {
-    "dev": "npm run dev -w @chasm/orchestrator",
+    "dev": "concurrently -n orch,site,wb -c blue,green,magenta \"npm run dev -w @chasm/orchestrator\" \"npm run dev -w @chasm/template\" \"npm run dev -w @chasm/whiteboard\"",
+    "dev:orch": "npm run dev -w @chasm/orchestrator",
+    "dev:site": "npm run dev -w @chasm/template",
+    "dev:wb": "npm run dev -w @chasm/whiteboard",
+    "build:site": "npm run build -w @chasm/template",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
@@ -14,6 +26,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.8.0",
+    "concurrently": "^9.1.2",
     "tsx": "^4.22.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6"
