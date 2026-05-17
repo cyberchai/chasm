@@ -129,8 +129,13 @@ All pulled via `stripe projects env --pull`. Never commit `.env`.
 
 ```
 ANTHROPIC_API_KEY=
-AGENTPHONE_API_KEY=
-STRIPE_SECRET_KEY=        # test mode
-STRIPE_PUBLISHABLE_KEY=   # test mode
+AGENTPHONE_API_KEY=             # AgentPhone dashboard, Bearer token
+AGENTPHONE_WEBHOOK_SECRET=      # issued when the webhook is created; HMAC verify
+STRIPE_SECRET_KEY=              # test mode
+STRIPE_PUBLISHABLE_KEY=         # test mode
 GEMINI_API_KEY=
 ```
+
+`agent_id` / `number_id` / iMessage line id are not secrets — created via
+AgentPhone API calls, keep them in a config file or env, the orchestrator's
+choice.
