@@ -31,6 +31,8 @@ export default function BoardClient({ businessId }: { businessId: string }) {
   const [status, setStatus] = useState<Status>("idle");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Total suggestions we plan to generate in this batch — known before any start.
+  const [generatingTotal, setGeneratingTotal] = useState<number | null>(null);
 
   const handleUpdateAdd = useCallback((update: PendingUpdate) => {
     setPendingUpdates((prev) => [...prev, update]);
@@ -72,7 +74,7 @@ export default function BoardClient({ businessId }: { businessId: string }) {
           canvasSnapshot: snapshot,
         }),
       });
-      const { reply, shouldGenerate } = await res.json();
+      const { reply, shouldGenerate, subPrompts } = await res.json();
 
       setMessages((prev) => [
         ...prev,
@@ -80,7 +82,16 @@ export default function BoardClient({ businessId }: { businessId: string }) {
       ]);
 
       if (shouldGenerate) {
-        await canvasRef.current?.generateSuggestion(text);
+        const prompts: string[] = (
+          Array.isArray(subPrompts) && subPrompts.length > 0 ? subPrompts : [text]
+        ).slice(0, 3);
+        // Set the total before any generation so the UI shows "0 / N" immediately.
+        setGeneratingTotal(prompts.length);
+        for (const p of prompts) {
+          await canvasRef.current?.generateSuggestion(p);
+        }
+        setGeneratingTotal(null);
+        setMode("review");
       }
     },
     [messages]
@@ -146,17 +157,30 @@ export default function BoardClient({ businessId }: { businessId: string }) {
         </button>
       </header>
 
-      {/* Floating left panel — suggestions (hidden when empty) */}
-      {pendingUpdates.length > 0 && (
+      {/* Floating left panel — suggestions (visible for the full generation batch + review) */}
+      {(pendingUpdates.length > 0 || generatingTotal !== null) && (
         <aside className="fixed left-4 top-20 bottom-4 z-20 w-56 flex flex-col rounded-3xl bg-white/85 backdrop-blur-xl shadow-2xl shadow-black/10 border border-white/60 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100/80 shrink-0">
             <h2 className="text-sm font-semibold text-gray-700">Suggestions</h2>
-            <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-semibold">
-              {pendingUpdates.length}
-            </span>
+            {generatingTotal !== null ? (
+              <span className="flex items-center gap-1.5 ml-auto text-[11px] text-violet-500 font-semibold">
+                <span className="inline-block w-2.5 h-2.5 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
+                {pendingUpdates.length} / {generatingTotal}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-semibold">
+                {pendingUpdates.length}
+              </span>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto min-h-0">
-            <UpdateStack pendingUpdates={pendingUpdates} mode={mode} />
+            <UpdateStack
+              pendingUpdates={pendingUpdates}
+              mode={mode}
+              isGenerating={generatingTotal !== null}
+              onAccept={(u) => canvasRef.current?.acceptUpdate(u)}
+              onReject={(u) => canvasRef.current?.rejectUpdate(u)}
+            />
           </div>
         </aside>
       )}

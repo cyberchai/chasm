@@ -1,10 +1,11 @@
 "use client";
 
-import {
+import React, {
   forwardRef,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from "react";
 import {
@@ -18,13 +19,14 @@ import {
   createShapeId,
   useEditor,
   type Editor,
+  type TLImageShape,
   type TLShapeId,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import { useKeyboardReview } from "@/hooks/useKeyboardReview";
 import { computeDiff } from "@/hooks/usePixelDiff";
 import type { Mode, PendingUpdate, Status } from "@/types";
-import { blobToBase64, correctYellowedWhites } from "@/utils/imageProcessing";
+import { applyAlpha, blobToBase64, correctYellowedWhites } from "@/utils/imageProcessing";
 
 // Force white background in both light and dark mode
 DefaultColorThemePalette.lightMode.background = "#FFFFFF";
@@ -34,99 +36,50 @@ export interface CanvasHandle {
   generateSuggestion: (prompt: string) => Promise<void>;
   captureCanvas: () => Promise<string>;
   captureForSubmit: () => Promise<string>;
+  acceptUpdate: (update: PendingUpdate) => void;
+  rejectUpdate: (update: PendingUpdate) => void;
 }
+
+type BgBounds = { x: number; y: number; w: number; h: number };
 
 interface CanvasControllerProps {
   mode: Mode;
   pendingUpdates: PendingUpdate[];
-  onUpdateAccept: (update: PendingUpdate) => void;
-  onUpdateReject: (update: PendingUpdate) => void;
+  bgBoundsRef: React.MutableRefObject<BgBounds>;
+  onAccept: (update: PendingUpdate) => void;
+  onReject: (update: PendingUpdate) => void;
 }
 
 function CanvasController({
   mode,
   pendingUpdates,
-  onUpdateAccept,
-  onUpdateReject,
+  bgBoundsRef,
+  onAccept,
+  onReject,
 }: CanvasControllerProps) {
   const editor = useEditor();
-  const isUpdatingRef = useRef(false);
 
-  // Sync readonly state with mode
+  // Switch tool instead of isReadonly — isReadonly silently blocks programmatic
+  // updateShape/deleteShape calls, so accept/reject would both appear as "accept".
+  // Hand tool prevents drawing while leaving the programmatic API fully open.
   useEffect(() => {
-    editor.updateInstanceState({ isReadonly: mode === "review" });
+    if (mode === "review") {
+      editor.setCurrentTool("hand");
+    } else {
+      editor.setCurrentTool("draw");
+    }
   }, [editor, mode]);
 
-  // Zoom to diff and sync opacities when stack changes
+  // tldraw silently ignores opacity updates on locked shapes (same as deleteShape).
+  // Must unlock → set opacity → re-lock for each shape.
   useEffect(() => {
-    if (pendingUpdates.length > 0) {
-      const { boundingBox: bb } = pendingUpdates[0];
-      editor.zoomToBounds(
-        new Box(bb.x, bb.y, bb.w, bb.h),
-        { animation: { duration: 400 }, inset: 32 }
-      );
-      // Only top update is visible; rest are hidden until their turn
-      pendingUpdates.forEach((update, i) => {
-        editor.updateShape({
-          id: update.shapeId,
-          type: "image",
-          isLocked: false,
-          opacity: i === 0 ? 1 : 0,
-        });
-        editor.updateShape({
-          id: update.shapeId,
-          type: "image",
-          isLocked: true,
-        });
-      });
-    }
+    pendingUpdates.forEach((update, i) => {
+      editor.updateShape({ id: update.shapeId, type: "image", isLocked: false, opacity: i === 0 ? 1 : 0 });
+      editor.updateShape({ id: update.shapeId, type: "image", isLocked: true });
+    });
   }, [editor, pendingUpdates]);
 
-  const handleAccept = useCallback(
-    (update: PendingUpdate) => {
-      isUpdatingRef.current = true;
-      editor.updateShape({
-        id: update.shapeId,
-        type: "image",
-        isLocked: false,
-        opacity: 1,
-      });
-      editor.updateShape({
-        id: update.shapeId,
-        type: "image",
-        isLocked: true,
-      });
-      onUpdateAccept(update);
-      setTimeout(() => {
-        isUpdatingRef.current = false;
-      }, 100);
-    },
-    [editor, onUpdateAccept]
-  );
-
-  const handleReject = useCallback(
-    (update: PendingUpdate) => {
-      isUpdatingRef.current = true;
-      editor.updateShape({
-        id: update.shapeId,
-        type: "image",
-        isLocked: false,
-      });
-      editor.deleteShape(update.shapeId);
-      onUpdateReject(update);
-      setTimeout(() => {
-        isUpdatingRef.current = false;
-      }, 100);
-    },
-    [editor, onUpdateReject]
-  );
-
-  useKeyboardReview({
-    mode,
-    pendingUpdates,
-    onAccept: handleAccept,
-    onReject: handleReject,
-  });
+  useKeyboardReview({ mode, pendingUpdates, onAccept, onReject });
 
   return null;
 }
@@ -148,7 +101,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     mode,
     pendingUpdates,
     screenshotUrl,
-    onModeChange,
     onUpdateAdd,
     onUpdateAccept,
     onUpdateReject,
@@ -159,8 +111,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const editorRef = useRef<Editor | null>(null);
   const lastScreenshotRef = useRef<string>("");
   const pendingUpdatesRef = useRef<PendingUpdate[]>(pendingUpdates);
-  const modeRef = useRef<Mode>(mode);
-  // Background bounds — always (0,0,w,h). Used as the canonical capture region.
   const bgBoundsRef = useRef<{ x: number; y: number; w: number; h: number }>({
     x: 0, y: 0, w: 1280, h: 800,
   });
@@ -168,10 +118,6 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   useEffect(() => {
     pendingUpdatesRef.current = pendingUpdates;
   }, [pendingUpdates]);
-
-  useEffect(() => {
-    modeRef.current = mode;
-  }, [mode]);
 
   const captureCanvas = useCallback(async (): Promise<string> => {
     const editor = editorRef.current;
@@ -213,16 +159,44 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     }
   }, []);
 
+  // Accept: swap the ghost asset (baked 0.55 alpha) for the full-opacity diff,
+  // then remove from queue. No tldraw opacity change needed — asset src does it.
+  const handleAccept = useCallback(
+    (update: PendingUpdate) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const shape = editor.getShape<TLImageShape>(update.shapeId);
+      if (shape?.props.assetId) {
+        const asset = editor.getAsset(shape.props.assetId);
+        if (asset) {
+          editor.store.put([{ ...asset, props: { ...asset.props, src: update.diffPng } }]);
+        }
+      }
+      onUpdateAccept(update);
+    },
+    [onUpdateAccept]
+  );
+
+  // Reject: must unlock before delete — tldraw silently skips deleteShape on locked shapes.
+  const handleReject = useCallback(
+    (update: PendingUpdate) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      editor.updateShape({ id: update.shapeId, type: "image", isLocked: false });
+      editor.deleteShape(update.shapeId);
+      onUpdateReject(update);
+    },
+    [onUpdateReject]
+  );
+
   const generateSuggestion = useCallback(
     async (prompt: string) => {
-      if (modeRef.current === "review") return;
       const editor = editorRef.current;
       if (!editor) return;
 
       onStatusChange("generating");
 
       try {
-        // Step 1 — capture at fixed background bounds (consistent scale every time)
         const shapeIds = [...editor.getCurrentPageShapeIds()].filter(
           (id) => !pendingUpdatesRef.current.map((u) => u.shapeId).includes(id)
         );
@@ -249,43 +223,37 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         lastScreenshotRef.current = base64;
 
-        // Step 2 — call Gemini via API route
         const res = await fetch("/api/suggest", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: base64, prompt }),
         });
         const json = await res.json();
-        const { imageUrl, textContent, _raw } = json;
+        const { imageUrl, _raw } = json;
 
         console.log("[Canvas] /api/suggest response:", {
           status: res.status,
           imageUrl: imageUrl ? imageUrl.slice(0, 80) + "…" : null,
-          textContent: textContent?.slice?.(0, 200),
           messageKeys: _raw?.choices?.[0]?.message ? Object.keys(_raw.choices[0].message) : null,
         });
 
         if (!imageUrl) {
           const msg = _raw?.choices?.[0]?.message ?? {};
           console.error("[Canvas] No imageUrl. message keys:", Object.keys(msg));
-          console.error("[Canvas] images field:", msg.images);
-          console.error("[Canvas] content field:", Array.isArray(msg.content) ? msg.content.map((b: {type:string}) => b.type) : msg.content);
           onStatusChange("error");
           return;
         }
 
-        // Step 3 — pixel diff (Gemini image is forced to W×H in computeDiff)
         const { diffBase64, boundingBox } = await computeDiff(
           lastScreenshotRef.current,
           imageUrl
         );
-
-        // Step 4 — yellow-white correction
         const cleanDiff = await correctYellowedWhites(diffBase64);
+        // Bake 55% alpha into the image pixels so tldraw shape opacity isn't needed
+        // for the ghost effect. cleanDiff (full alpha) is kept for the accept swap.
+        const ghostDiff = await applyAlpha(cleanDiff, 0.55);
 
-        // Step 5 — place diff at exact same position/size as background
         const assetId = AssetRecordType.createId();
-
         editor.createAssets([
           {
             id: assetId,
@@ -293,7 +261,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             typeName: "asset",
             props: {
               name: "diff.png",
-              src: cleanDiff,
+              src: ghostDiff,
               w: bgW,
               h: bgH,
               mimeType: "image/png",
@@ -309,16 +277,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           type: "image",
           x: bgX,
           y: bgY,
-          opacity: 1,
+          opacity: 0,
           isLocked: true,
-          props: {
-            w: bgW,
-            h: bgH,
-            assetId,
-          },
+          props: { w: bgW, h: bgH, assetId },
         });
 
-        // boundingBox is in image-pixel space relative to (bgX, bgY) at scale 1
         const newUpdate: PendingUpdate = {
           id: crypto.randomUUID(),
           diffPng: cleanDiff,
@@ -333,32 +296,34 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         };
 
         onUpdateAdd(newUpdate);
-        onModeChange("review");
         onStatusChange("success");
-
-        // Clear success badge after 2s
         setTimeout(() => onStatusChange("idle"), 2000);
       } catch (err) {
         console.error("generateSuggestion failed:", err);
         onStatusChange("error");
       }
     },
-    [onModeChange, onUpdateAdd, onStatusChange]
+    [onUpdateAdd, onStatusChange]
   );
 
   useImperativeHandle(
     ref,
-    () => ({ generateSuggestion, captureCanvas, captureForSubmit }),
-    [generateSuggestion, captureCanvas, captureForSubmit]
+    () => ({
+      generateSuggestion,
+      captureCanvas,
+      captureForSubmit,
+      acceptUpdate: handleAccept,
+      rejectUpdate: handleReject,
+    }),
+    [generateSuggestion, captureCanvas, captureForSubmit, handleAccept, handleReject]
   );
 
   const handleMount = useCallback(
     (editor: Editor) => {
       editorRef.current = editor;
-      // Pencil-like defaults: thin grey hand-drawn strokes
       editor.setStyleForNextShapes(DefaultColorStyle, "grey");
       editor.setStyleForNextShapes(DefaultSizeStyle, "s");
-      editor.setStyleForNextShapes(DefaultDashStyle, "draw");
+      editor.setStyleForNextShapes(DefaultDashStyle, "solid");
       editor.setCurrentTool("draw");
 
       const load = async () => {
@@ -370,30 +335,37 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         } else {
           bgBoundsRef.current = seedBlankCanvas(editor);
         }
-        // Re-zoom after a layout frame so tldraw has measured the container correctly
-        requestAnimationFrame(() => editor.zoomToFit({ animation: { duration: 0 } }));
+        requestAnimationFrame(() => {
+          const { x, y, w, h } = bgBoundsRef.current;
+          zoomToFit(editor, x, y, w, h);
+          editor.setCameraOptions({ isLocked: true });
+        });
       };
       load();
     },
     [screenshotUrl]
   );
 
+  const tlComponents = useMemo(() => ({
+    MenuPanel: null,
+    NavigationPanel: null,
+    HelperButtons: null,
+    StylePanel: null,
+    Toolbar: mode === "review" ? null : undefined,
+  }), [mode]);
+
   return (
     <div style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
       <Tldraw
-        components={{
-          MenuPanel: null,
-          NavigationPanel: null,
-          HelperButtons: null,
-          StylePanel: null,
-        }}
+        components={tlComponents}
         onMount={handleMount}
       >
         <CanvasController
           mode={mode}
           pendingUpdates={pendingUpdates}
-          onUpdateAccept={onUpdateAccept}
-          onUpdateReject={onUpdateReject}
+          bgBoundsRef={bgBoundsRef}
+          onAccept={handleAccept}
+          onReject={handleReject}
         />
       </Tldraw>
     </div>
@@ -401,6 +373,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
 });
 
 export default Canvas;
+
+function zoomToFit(editor: Editor, bgX: number, bgY: number, bgW: number, bgH: number) {
+  editor.zoomToBounds(
+    new Box(bgX, bgY, bgW, bgH),
+    { animation: { duration: 0 }, inset: 0 }
+  );
+}
 
 async function loadScreenshotAsBackground(
   editor: Editor,
@@ -442,7 +421,6 @@ async function loadScreenshotAsBackground(
     props: { w: img.width, h: img.height, assetId },
   });
 
-  editor.zoomToFit({ animation: { duration: 0 } });
   return { x: 0, y: 0, w: img.width, h: img.height };
 }
 
@@ -458,6 +436,5 @@ function seedBlankCanvas(
     isLocked: true,
     props: { w: 1280, h: 800, geo: "rectangle", fill: "solid", color: "white" },
   });
-  editor.zoomToFit({ animation: { duration: 0 } });
   return { x: 0, y: 0, w: 1280, h: 800 };
 }
