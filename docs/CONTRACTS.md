@@ -3,6 +3,10 @@
 Single source of truth for cross-module interfaces. Change one → announce in
 the group chat first. Every module depends on this file.
 
+> The types below are also **real code** in `shared/types.ts` — import from
+> there, never hand-redefine. This doc is the human explanation; that file is
+> what compiles. Keep the two in sync.
+
 ## Ports
 
 | Port  | Service                                  | Owner |

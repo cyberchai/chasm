@@ -33,6 +33,9 @@ pieces earlier, then pair onto whichever of P1/P2 is behind.
 - Each person runs `stripe projects env --pull` → shared `.env`.
 - Repo scaffold: npm workspaces, TypeScript config, `.gitignore`
   (`.env`, `.projects/state.local.json`, `data/`, `sites/`, `node_modules/`).
+  Each module gets its own `package.json` so dep changes never collide at root.
+- `shared/types.ts` already exists — every module imports its types, nobody
+  hand-rolls a copy. This is what keeps integration clean.
 - Claim an AgentPhone number; P1 wires the ngrok tunnel.
 - Agree on `docs/CONTRACTS.md` — no code crosses a module before it is signed
   off.

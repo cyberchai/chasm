@@ -77,8 +77,10 @@ whiteboard app (:3001) ──► annotated PNG ────────┘
 | `infra/`         | Stripe Projects config, secrets, screenshot util, run scripts | P3 |
 | `whiteboard/`    | Excalidraw canvas app (:3001)                 | P4 |
 | `merchant-agent/`| Post-launch inbound ops agent                 | P4 |
+| `shared/`        | Canonical TS types — contracts as code        | all |
 
-Each dir has its own `CLAUDE.md` with the detail for its owner.
+Each dir has its own `CLAUDE.md` with the detail for its owner. `shared/` has
+no single owner — changing a type means announcing it, same as `CONTRACTS.md`.
 
 ## Shared contracts
 
