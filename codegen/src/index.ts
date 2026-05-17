@@ -7,6 +7,7 @@ export { applyEdit } from "./applyEdit.js";
 export { startSite, stopSite, siteUrl } from "./siteProcess.js";
 export { runEditAgent } from "./agent.js";
 export type { RunEditAgentOptions } from "./agent.js";
+export { siteDir, dataDir, profilePath } from "./paths.js";
 
 export type {
   EditRequest,

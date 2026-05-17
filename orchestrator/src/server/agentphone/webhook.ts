@@ -244,10 +244,12 @@ async function processCommand(
 
 function finalTextMessage(result: ChasmBuilderResult): string {
   if (result.status === "failed") {
-    return "I hit an issue while updating the preview. Reply with the change again and I will retry.";
+    const reason = result.summary ? `: ${result.summary}` : ".";
+    return `I hit an issue updating the site${reason}\nReply with the change again and I will retry.`;
   }
 
-  const base = "Done — I updated the preview. Reply with the next change.";
+  // result.summary is codegen's real description of what changed.
+  const base = result.summary?.trim() || "Done — I updated the preview.";
   return result.previewUrl ? `${base}\n${result.previewUrl}` : base;
 }
 

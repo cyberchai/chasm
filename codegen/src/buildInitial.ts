@@ -19,6 +19,14 @@ export interface BuildInitialOptions {
   skipInstall?: boolean;
   /** Skip starting the Vite dev server. */
   skipVite?: boolean;
+  /**
+   * Keep the template's own `src/content.ts` instead of generating it from the
+   * profile. The template ships a typecheck-clean, richly-shaped `content.ts`;
+   * `profileToContentSource` only emits the bare profile and will not satisfy
+   * the current template's components. Set this so the initial site is always
+   * build-green and let `applyEdit` customise it.
+   */
+  keepTemplateContent?: boolean;
 }
 
 /**
@@ -62,12 +70,15 @@ export async function buildInitialSite(
       },
     });
 
-    // 3. generate src/content.ts from the profile
-    await writeFile(
-      join(dest, "src", "content.ts"),
-      profileToContentSource(profile),
-      "utf8",
-    );
+    // 3. generate src/content.ts from the profile — unless the caller asked to
+    //    keep the template's own (typecheck-clean) content.ts.
+    if (!opts.keepTemplateContent) {
+      await writeFile(
+        join(dest, "src", "content.ts"),
+        profileToContentSource(profile),
+        "utf8",
+      );
+    }
 
     // 4. install deps (the template ships a .gitignore for node_modules)
     if (!opts.skipInstall) {

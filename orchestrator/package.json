@@ -6,6 +6,7 @@
     "dev": "tsx --env-file-if-exists=../.env src/server/index.ts"
   },
   "dependencies": {
+    "@chasm/codegen": "*",
     "agentphone": "^1.0.10"
   }
 }

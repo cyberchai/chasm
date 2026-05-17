@@ -1,143 +1,141 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+import { existsSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import {
+  applyEdit,
+  buildInitialSite,
+  dataDir,
+  profilePath,
+  siteDir,
+  type BusinessProfile,
+  type EditResult,
+} from "@chasm/codegen";
 import type { ChasmBuilderCommand } from "../agentphone/types.js";
 import type { EnvSource } from "../env.js";
-import { getEnv } from "../env.js";
 import { logger, type ChasmLogger } from "../logger.js";
-import {
-  inferProjectId,
-  previewUrlForProject,
-  type ChasmBuilderResult,
-} from "./builderCommands.js";
+import { previewUrlForProject, type ChasmBuilderResult } from "./builderCommands.js";
 
 export type ProcessBuilderCommandOptions = {
   env?: EnvSource;
   logger?: ChasmLogger;
 };
 
-/** Helper to call Gemini Deepmind API for Multimodal Ingestion */
-async function analyzeMediaWithGemini(mediaUrl: string, apiKey: string, log: ChasmLogger): Promise<string> {
-  try {
-    log.info("Fetching media for Gemini multimodal analysis", { mediaUrl });
-    const res = await fetch(mediaUrl);
-    if (!res.ok) throw new Error(`Failed to fetch media: ${res.statusText}`);
-    const buffer = await res.arrayBuffer();
-    const base64Data = Buffer.from(buffer).toString("base64");
+/** One business for the demo — see docs/CONTRACTS.md. */
+const BUSINESS_ID = "demo";
 
-    log.info("Invoking Gemini Deepmind API (gemini-2.5-flash) for product curation...");
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: "You are Chasm AI, a world-class retail curator and expert florist assistant. Analyze this product image sent by a merchant via iMessage/MMS. Identify the product name, describe its aesthetic vibe in 1 sentence, and suggest a fair retail price in USD (e.g. $45.00). Keep your output extremely concise and structured.",
-                },
-                {
-                  inlineData: {
-                    mimeType: res.headers.get("content-type") || "image/jpeg",
-                    data: base64Data,
-                  },
-                },
-              ],
-            },
-          ],
-        }),
+/**
+ * Seed profile for the first build. The initial site keeps the template's own
+ * typecheck-clean `content.ts` (see `keepTemplateContent` below), so this
+ * profile only feeds the build summary — the owner's instructions reshape the
+ * actual site. It mirrors the template default for a coherent first message.
+ */
+const DEFAULT_PROFILE: BusinessProfile = {
+  businessId: BUSINESS_ID,
+  name: "Rose & Thorn",
+  type: "florist",
+  vibe: ["cozy", "modern", "artisanal"],
+  colors: ["#2d5016", "#f5f0e1"],
+  tagline: "Fresh arrangements, made daily",
+  products: [],
+  contact: { phone: "", address: "", hours: "" },
+  sections: ["hero", "products", "about", "contact", "order"],
+};
+
+/** Initial build runs at most once; concurrent commands await the same build. */
+let buildOnce: Promise<EditResult> | null = null;
+
+function ensureSiteBuilt(log: ChasmLogger): Promise<EditResult> {
+  if (!buildOnce) {
+    buildOnce = (async () => {
+      await mkdir(dataDir(BUSINESS_ID), { recursive: true });
+      if (!existsSync(profilePath(BUSINESS_ID))) {
+        await writeFile(
+          profilePath(BUSINESS_ID),
+          JSON.stringify(DEFAULT_PROFILE, null, 2),
+          "utf8",
+        );
       }
-    );
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      throw new Error(`Gemini API error: ${geminiRes.status} ${errText}`);
-    }
-
-    const data = await geminiRes.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Analyzed item: Custom Floral Arrangement ($45.00)";
-    log.info("Gemini Deepmind API analysis complete", { analysis: text.trim() });
-    return text.trim();
-  } catch (error) {
-    log.error("Gemini Deepmind API multimodal analysis failed", { error });
-    return "Custom Spring Arrangement ($45.00)";
+      log.info("Building initial site (this clones the template and installs deps)", {
+        businessId: BUSINESS_ID,
+      });
+      const result = await buildInitialSite(BUSINESS_ID, { keepTemplateContent: true });
+      log.info("Initial site build finished", { ok: result.ok, error: result.error });
+      return result;
+    })();
   }
+  return buildOnce;
 }
 
+/**
+ * Turn one normalized AgentPhone command into a real site edit.
+ *
+ * First contact triggers a deterministic initial build; every command after
+ * that runs the Claude Agent SDK edit loop in `codegen`. The returned
+ * `summary` is the real, human-readable description of what changed — the
+ * orchestrator speaks/texts it back to the owner.
+ */
 export async function processBuilderCommand(
   command: ChasmBuilderCommand,
   { env = process.env, logger: log = logger }: ProcessBuilderCommandOptions = {},
 ): Promise<ChasmBuilderResult> {
-  const projectId = inferProjectId(command);
-  const previewUrl = previewUrlForProject(projectId, env);
+  // codegen's Agent SDK authenticates with the Claude subscription. An empty
+  // ANTHROPIC_API_KEY would be treated as a (bad) API key, so drop it.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    delete process.env.ANTHROPIC_API_KEY;
+  }
+
+  const previewUrl = previewUrlForProject(BUSINESS_ID, env);
 
   log.info("Chasm builder command received", {
     channel: command.channel,
     eventId: command.eventId,
     mediaCount: command.mediaUrls.length,
-    projectId,
+    businessId: BUSINESS_ID,
     sessionId: command.sessionId,
     text: truncate(command.text),
   });
 
-  const apiKey = getEnv("GEMINI_API_KEY", env);
-  let geminiAnalysis = "";
-
-  // 1. Multimodal Gemini Ingestion
-  if (command.mediaUrls.length > 0 && apiKey) {
-    geminiAnalysis = await analyzeMediaWithGemini(command.mediaUrls[0], apiKey, log);
+  const instruction = command.text.trim();
+  if (!instruction) {
+    return {
+      status: "completed",
+      summary:
+        command.mediaUrls.length > 0
+          ? "Got your photo — texted product images aren't wired into codegen yet."
+          : "Tell me what to build or change on your site.",
+      previewUrl,
+      projectId: BUSINESS_ID,
+    };
   }
 
-  // 2. Deterministic Demo Choreography (Zero-Latency HMR State Machine)
-  // Instead of waiting 45 seconds for LLM codegen during a live 3-minute pitch,
-  // we instantly swap/update the content.ts file to trigger sub-second Vite HMR.
-  try {
-    const contentPath = path.resolve(process.cwd(), "template/src/content.ts");
-    let currentContent = await fs.readFile(contentPath, "utf-8");
-
-    const textLower = command.text.toLowerCase();
-
-    // Stage 1: Initial Call Onboarding (Rose & Thorn Florist)
-    if (command.channel === "voice" || textLower.includes("rose") || textLower.includes("florist")) {
-      log.info("Demo Choreography: Act I (Initial Onboarding) triggered. Setting base Rose & Thorn content.");
-      currentContent = currentContent.replace(/name:\s*['"][^'"]+['"]/g, "name: 'Rose & Thorn'");
-      currentContent = currentContent.replace(/type:\s*['"][^'"]+['"]/g, "type: 'florist'");
-      await fs.writeFile(contentPath, currentContent, "utf-8");
+  // 1. First contact → deterministic initial build (clone template, no LLM).
+  if (!existsSync(siteDir(BUSINESS_ID))) {
+    const built = await ensureSiteBuilt(log);
+    if (!built.ok) {
+      return {
+        status: "failed",
+        summary: built.error ?? "I couldn't build the initial site.",
+        previewUrl,
+        projectId: BUSINESS_ID,
+      };
     }
-    // Stage 2: iMessage Product Photo Ingestion
-    else if (command.channel === "imessage" && command.mediaUrls.length > 0) {
-      log.info("Demo Choreography: Act II (Multimodal iMessage Ingestion) triggered.", { geminiAnalysis });
-      const cleanDesc = geminiAnalysis.replace(/'/g, "\\'").replace(/\n/g, " ");
-      const newProduct = `    {
-      name: 'Spring Pastel Bouquet (Live Add)',
-      price: 4500,
-      image: '/products/pastel spring bouquet.jpg',
-      description: '${cleanDesc}',
-    },`;
-      
-      if (!currentContent.includes("Spring Pastel Bouquet (Live Add)")) {
-        currentContent = currentContent.replace("products: [", `products: [\n${newProduct}`);
-        await fs.writeFile(contentPath, currentContent, "utf-8");
-      }
-    }
-    // Stage 3: Whiteboard Annotation / Text Edit
-    else if (textLower.includes("bolder") || textLower.includes("premium") || textLower.includes("title") || command.channel === "whiteboard") {
-      log.info("Demo Choreography: Act III (Whiteboard/Text Edit) triggered. Updating Hero Title.");
-      currentContent = currentContent.replace(/tagline:\s*['"][^'"]+['"]/g, "tagline: 'Premium Artisanal Arrangements, Crafted Daily'");
-      await fs.writeFile(contentPath, currentContent, "utf-8");
-    }
-
-    log.info("Demo state machine updated content.ts successfully. Vite HMR fired.");
-  } catch (err) {
-    log.error("Failed to update demo state machine content.ts", { error: err });
   }
+
+  // 2. Apply the instruction with the Claude Agent SDK edit loop.
+  const result = await applyEdit({ businessId: BUSINESS_ID, instruction });
+
+  log.info("Chasm edit finished", {
+    ok: result.ok,
+    committed: result.committed,
+    error: result.error,
+  });
 
   return {
-    status: "completed",
-    summary: geminiAnalysis ? `Gemini multimodal analysis: ${geminiAnalysis}` : "Demo state updated successfully via deterministic HMR.",
+    status: result.ok ? "completed" : "failed",
+    summary: result.ok
+      ? result.summary
+      : result.error ?? "The edit didn't go through.",
     previewUrl,
-    projectId,
+    projectId: BUSINESS_ID,
   };
 }
 
