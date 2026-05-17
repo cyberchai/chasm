@@ -3,6 +3,9 @@
 The package that turns a profile + an instruction into edited site code. A
 **library**, not a server — the orchestrator imports it.
 
+> Detailed build plan: `codegen/PLAN.md`. Edit-agent system prompt:
+> `codegen/prompts/edit-agent.md`.
+
 ## Public API (see `docs/CONTRACTS.md` for types)
 
 - `buildInitialSite(businessId)` — clone `/template` → `sites/{id}/`, apply
