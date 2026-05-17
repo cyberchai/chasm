@@ -1,0 +1,21 @@
+{
+  "name": "chasm",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "orchestrator"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @chasm/orchestrator",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "chasm:agentphone:setup": "tsx scripts/setup-agentphone.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "tsx": "^4.22.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  }
+}

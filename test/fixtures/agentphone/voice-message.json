@@ -1,0 +1,25 @@
+{
+  "event": "agent.message",
+  "channel": "voice",
+  "timestamp": "2026-05-17T19:02:00Z",
+  "agentId": "agt_chasm",
+  "data": {
+    "callId": "call_voice_123",
+    "numberId": "num_chasm",
+    "from": "+15551234567",
+    "to": "+15557654321",
+    "status": "in-progress",
+    "transcript": "Make the site feel more premium.",
+    "confidence": 0.97,
+    "direction": "inbound"
+  },
+  "conversationState": null,
+  "recentHistory": [
+    {
+      "content": "Tell me what you want to change.",
+      "direction": "outbound",
+      "channel": "voice",
+      "at": "2026-05-17T19:01:55Z"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "event": "agent.message",
+  "channel": "imessage",
+  "timestamp": "2026-05-17T19:01:00Z",
+  "agentId": "agt_chasm",
+  "data": {
+    "conversationId": "conv_imessage_123",
+    "numberId": "num_chasm",
+    "from": "+15551234567",
+    "to": "+15557654321",
+    "message": "Add this product photo to the bouquets section.",
+    "mediaUrl": "https://example.com/product.png",
+    "direction": "inbound",
+    "receivedAt": "2026-05-17T19:01:00Z"
+  },
+  "conversationState": {
+    "businessId": "demo"
+  },
+  "recentHistory": [
+    {
+      "content": "Send me product photos when you are ready.",
+      "direction": "outbound",
+      "channel": "imessage",
+      "at": "2026-05-17T19:00:30Z"
+    }
+  ]
+}

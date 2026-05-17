@@ -1,0 +1,31 @@
+{
+  "event": "agent.call_ended",
+  "channel": "voice",
+  "timestamp": "2026-05-17T19:05:00Z",
+  "agentId": "agt_chasm",
+  "data": {
+    "callId": "call_voice_123",
+    "numberId": "num_chasm",
+    "from": "+15551234567",
+    "to": "+15557654321",
+    "direction": "inbound",
+    "status": "completed",
+    "startedAt": "2026-05-17T19:02:00Z",
+    "endedAt": "2026-05-17T19:05:00Z",
+    "durationSeconds": 180,
+    "disconnectionReason": "caller_hangup",
+    "transcript": [
+      {
+        "role": "user",
+        "content": "Make the site feel more premium."
+      },
+      {
+        "role": "agent",
+        "content": "I started that update."
+      }
+    ],
+    "summary": "Owner requested a more premium visual direction.",
+    "userSentiment": "Positive",
+    "callSuccessful": true
+  }
+}

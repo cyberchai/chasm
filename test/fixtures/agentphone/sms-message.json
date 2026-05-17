@@ -1,0 +1,27 @@
+{
+  "event": "agent.message",
+  "channel": "sms",
+  "timestamp": "2026-05-17T19:00:00Z",
+  "agentId": "agt_chasm",
+  "data": {
+    "conversationId": "conv_sms_123",
+    "numberId": "num_chasm",
+    "from": "+15551234567",
+    "to": "+15557654321",
+    "message": "Make the hero darker green.",
+    "mediaUrl": null,
+    "direction": "inbound",
+    "receivedAt": "2026-05-17T19:00:00Z"
+  },
+  "conversationState": {
+    "businessId": "demo"
+  },
+  "recentHistory": [
+    {
+      "content": "Hey, this is Chasm.",
+      "direction": "outbound",
+      "channel": "sms",
+      "at": "2026-05-17T18:59:30Z"
+    }
+  ]
+}

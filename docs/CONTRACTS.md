@@ -93,6 +93,7 @@ type EditResult = {
 
 | Method | Path                          | From            | Body |
 |--------|-------------------------------|-----------------|------|
+| POST   | `/api/agentphone/webhook`     | AgentPhone      | signed unified `agent.message`, `agent.call_ended`, `agent.reaction` event |
 | POST   | `/webhook/agentphone/call`    | AgentPhone      | call event / transcript chunk |
 | POST   | `/webhook/agentphone/imessage`| AgentPhone      | text + attachment URLs |
 | POST   | `/webhook/whiteboard`         | whiteboard app  | `{ businessId, pngBase64 }` |

@@ -1,0 +1,11 @@
+{
+  "name": "@chasm/orchestrator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file-if-exists=../.env src/server/index.ts"
+  },
+  "dependencies": {
+    "agentphone": "^1.0.10"
+  }
+}
