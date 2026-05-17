@@ -8,7 +8,8 @@ export type ChasmEnvName =
   | "AGENTPHONE_WEBHOOK_URL"
   | "AGENTPHONE_AREA_CODE"
   | "CHASM_PUBLIC_APP_URL"
-  | "CHASM_PREVIEW_BASE_URL";
+  | "CHASM_PREVIEW_BASE_URL"
+  | "GEMINI_API_KEY";
 
 export function getEnv(name: ChasmEnvName, env: EnvSource = process.env): string | undefined {
   const value = env[name];
