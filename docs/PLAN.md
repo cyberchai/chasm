@@ -1,6 +1,9 @@
 # Plan
 
-Agent Phone Number: +1 929 640 5053
+Agent Phone Number: +17578314612 (iMessage, Chasm Builder agent)
+Agent ID: cmpal8ynw0a9y10pjorgpzdaa
+Number ID: cmp9059eq006lgd29193dlwff
+Webhook secret: see .env (AGENTPHONE_WEBHOOK_SECRET)
 
 Phased build for the Chasm hackathon demo. Each phase ends in something
 runnable. `main` stays demoable at all times.
