@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import { handleAgentPhoneWebhookRequest } from "./agentphone/webhook.js";
+import { getWalletStatus } from "./integrations/sponge.js";
 import { logger } from "./logger.js";
 
 const AGENTPHONE_WEBHOOK_PATHS = new Set([
@@ -16,6 +17,19 @@ const server = createServer(async (request, response) => {
   if (request.method === "GET" && url.pathname === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ ok: true, service: "chasm-orchestrator" }));
+    return;
+  }
+
+  // Sponge Wallet status endpoint — show agent wallet during demo
+  if (request.method === "GET" && url.pathname === "/api/wallet/status") {
+    try {
+      const status = await getWalletStatus();
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(JSON.stringify(status, null, 2));
+    } catch (error) {
+      response.writeHead(500, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ error: "Failed to fetch wallet status" }));
+    }
     return;
   }
 
@@ -36,6 +50,10 @@ const server = createServer(async (request, response) => {
 
 server.listen(PORT, () => {
   logger.info(`Chasm orchestrator listening on http://localhost:${PORT}`);
+  logger.info("Endpoints:");
+  logger.info("  GET  /health                 — health check");
+  logger.info("  GET  /api/wallet/status       — Sponge wallet status");
+  logger.info("  POST /api/agentphone/webhook  — AgentPhone webhooks");
 });
 
 async function readRawBody(request: IncomingMessage): Promise<string> {

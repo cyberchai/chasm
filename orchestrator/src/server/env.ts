@@ -9,7 +9,11 @@ export type ChasmEnvName =
   | "AGENTPHONE_AREA_CODE"
   | "CHASM_PUBLIC_APP_URL"
   | "CHASM_PREVIEW_BASE_URL"
-  | "GEMINI_API_KEY";
+  | "GEMINI_API_KEY"
+  | "SPONGE_API_KEY"
+  | "SUPERMEMORY_API_KEY"
+  | "STRIPE_SECRET_KEY"
+  | "STRIPE_PUBLISHABLE_KEY";
 
 export function getEnv(name: ChasmEnvName, env: EnvSource = process.env): string | undefined {
   const value = env[name];
