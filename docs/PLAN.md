@@ -1,6 +1,14 @@
 # Plan
 
-Agent Phone Number: +1 929 640 5053
+## AgentPhone — Demo Numbers (Saran's account)
+| Number | Type | ID | Role |
+|---|---|---|---|
+| **+18127373648** | SMS/Voice | `cmpal3fs508aljeebu222ojrz` | ✅ PRIMARY demo number |
+| +16186578126 | SMS/Voice | `cmpaksc3m09ua10pjs1bdnocd` | Backup |
+
+Agent ID: `cmpalpx890aro10pjrpc4t3da` (Chasm Builder, webhook mode)
+Webhook secret: see `.env` → `AGENTPHONE_WEBHOOK_SECRET`
+API key: see `.env` → `AGENTPHONE_API_KEY` (Saran personal)
 
 Phased build for the Chasm hackathon demo. Each phase ends in something
 runnable. `main` stays demoable at all times.
