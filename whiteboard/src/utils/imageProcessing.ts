@@ -55,6 +55,27 @@ export function applyAlpha(dataUrl: string, alpha: number): Promise<string> {
   });
 }
 
+export function cropToRegion(
+  dataUrl: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, -x, -y);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.src = dataUrl;
+  });
+}
+
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

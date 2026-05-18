@@ -26,7 +26,7 @@ import "tldraw/tldraw.css";
 import { useKeyboardReview } from "@/hooks/useKeyboardReview";
 import { computeDiff } from "@/hooks/usePixelDiff";
 import type { Mode, PendingUpdate, Status } from "@/types";
-import { applyAlpha, blobToBase64, correctYellowedWhites } from "@/utils/imageProcessing";
+import { applyAlpha, blobToBase64, correctYellowedWhites, cropToRegion } from "@/utils/imageProcessing";
 
 // Force white background in both light and dark mode
 DefaultColorThemePalette.lightMode.background = "#FFFFFF";
@@ -59,23 +59,22 @@ function CanvasController({
 }: CanvasControllerProps) {
   const editor = useEditor();
 
-  // Switch tool instead of isReadonly — isReadonly silently blocks programmatic
-  // updateShape/deleteShape calls, so accept/reject would both appear as "accept".
-  // Hand tool prevents drawing while leaving the programmatic API fully open.
   useEffect(() => {
     if (mode === "review") {
-      editor.setCurrentTool("hand");
+      editor.setCurrentTool("select");
     } else {
       editor.setCurrentTool("draw");
     }
   }, [editor, mode]);
 
-  // tldraw silently ignores opacity updates on locked shapes (same as deleteShape).
-  // Must unlock → set opacity → re-lock for each shape.
+  // Top item: visible + unlocked for dragging. Others: hidden + locked.
   useEffect(() => {
     pendingUpdates.forEach((update, i) => {
-      editor.updateShape({ id: update.shapeId, type: "image", isLocked: false, opacity: i === 0 ? 1 : 0 });
-      editor.updateShape({ id: update.shapeId, type: "image", isLocked: true });
+      if (i === 0) {
+        editor.updateShape({ id: update.shapeId, type: "image", opacity: 1, isLocked: false });
+      } else {
+        editor.updateShape({ id: update.shapeId, type: "image", opacity: 0, isLocked: true });
+      }
     });
   }, [editor, pendingUpdates]);
 
@@ -159,8 +158,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     }
   }, []);
 
-  // Accept: swap the ghost asset (baked 0.55 alpha) for the full-opacity diff,
-  // then remove from queue. No tldraw opacity change needed — asset src does it.
+  // Accept: swap ghost asset for full-opacity diff, lock shape at wherever user dragged it.
   const handleAccept = useCallback(
     (update: PendingUpdate) => {
       const editor = editorRef.current;
@@ -172,17 +170,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           editor.store.put([{ ...asset, props: { ...asset.props, src: update.diffPng } }]);
         }
       }
+      editor.updateShape({ id: update.shapeId, type: "image", isLocked: true });
       onUpdateAccept(update);
     },
     [onUpdateAccept]
   );
 
-  // Reject: must unlock before delete — tldraw silently skips deleteShape on locked shapes.
+  // Reject: top item is already unlocked, so deleteShape works directly.
   const handleReject = useCallback(
     (update: PendingUpdate) => {
       const editor = editorRef.current;
       if (!editor) return;
-      editor.updateShape({ id: update.shapeId, type: "image", isLocked: false });
       editor.deleteShape(update.shapeId);
       onUpdateReject(update);
     },
@@ -249,9 +247,29 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           imageUrl
         );
         const cleanDiff = await correctYellowedWhites(diffBase64);
-        // Bake 55% alpha into the image pixels so tldraw shape opacity isn't needed
-        // for the ghost effect. cleanDiff (full alpha) is kept for the accept swap.
-        const ghostDiff = await applyAlpha(cleanDiff, 0.55);
+
+        // editor.toImage may output at devicePixelRatio× canvas dimensions.
+        // Measure the actual capture size so we can convert pixel coords → canvas units.
+        const captureSize = await new Promise<{ w: number; h: number }>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+          img.src = base64;
+        });
+        const ptc = bgW / captureSize.w; // pixels-to-canvas scale factor
+
+        const croppedClean = await cropToRegion(
+          cleanDiff,
+          boundingBox.x,
+          boundingBox.y,
+          boundingBox.w,
+          boundingBox.h
+        );
+        const croppedGhost = await applyAlpha(croppedClean, 0.55);
+
+        const shapeX = bgX + boundingBox.x * ptc;
+        const shapeY = bgY + boundingBox.y * ptc;
+        const shapeW = boundingBox.w * ptc;
+        const shapeH = boundingBox.h * ptc;
 
         const assetId = AssetRecordType.createId();
         editor.createAssets([
@@ -261,9 +279,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             typeName: "asset",
             props: {
               name: "diff.png",
-              src: ghostDiff,
-              w: bgW,
-              h: bgH,
+              src: croppedGhost,
+              w: boundingBox.w,
+              h: boundingBox.h,
               mimeType: "image/png",
               isAnimated: false,
             },
@@ -275,22 +293,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         editor.createShape({
           id: shapeId,
           type: "image",
-          x: bgX,
-          y: bgY,
+          x: shapeX,
+          y: shapeY,
           opacity: 0,
-          isLocked: true,
-          props: { w: bgW, h: bgH, assetId },
+          isLocked: false,
+          props: { w: shapeW, h: shapeH, assetId },
         });
 
         const newUpdate: PendingUpdate = {
           id: crypto.randomUUID(),
-          diffPng: cleanDiff,
-          boundingBox: {
-            x: bgX + boundingBox.x,
-            y: bgY + boundingBox.y,
-            w: boundingBox.w,
-            h: boundingBox.h,
-          },
+          diffPng: croppedClean,
+          boundingBox: { x: shapeX, y: shapeY, w: shapeW, h: shapeH },
           prompt,
           shapeId,
         };
@@ -355,7 +368,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   }), [mode]);
 
   return (
-    <div style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+    <div
+      style={{
+        position: "absolute", inset: 0, width: "100%", height: "100%",
+        cursor: mode === "draw" ? "url('/pencil.png') 0 31, crosshair" : "default",
+      }}
+    >
       <Tldraw
         components={tlComponents}
         onMount={handleMount}

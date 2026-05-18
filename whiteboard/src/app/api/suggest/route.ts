@@ -2,16 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { callOpenRouter } from "@/lib/openrouter";
 
 function buildPrompt(userPrompt: string): string {
-  return `You are helping design a website mockup. The user has drawn a wireframe.
-CRITICAL:
-- Make ONLY the minimum change needed to fulfill the instruction. Do not improve, redraw, or touch anything else.
-- DO NOT remove, modify, move, or touch ANY existing content in the image.
-- Modify ONLY the exact region where the change is needed — leave all other pixels identical.
-- Draw all additions in a clean wireframe style.
-- Keep the background pure white.
-- Match the user's sketchy/wireframe aesthetic.
-- If the requested change is small, the output should look almost identical to the input except for that one change.
-Additional instruction: ${userPrompt}`;
+  return `You are editing a low-fidelity website wireframe. Speed is critical — keep output as simple as possible.
+
+STYLE (non-negotiable — complexity kills speed):
+- Hand-drawn wireframe aesthetic: slightly wobbly lines, rough rectangles, imperfect curves — like a quick human sketch.
+- Black strokes on pure white only. No colors, no gradients, no shadows, no photographic fills.
+- Use hatching or loose cross-hatching for any filled regions. Placeholder text as squiggly lines or "Lorem" scrawl.
+- Keep it loose and gestural — do not make it look precise or computer-generated.
+
+EDITING RULES:
+- The instruction includes a zone in parentheses, e.g. (top of page). Confine ALL new pixels strictly to that vertical band. Do not draw anything outside it.
+- Touch ONLY the pixels required for the requested change. Leave everything else byte-identical to the input.
+- Do not redraw, clean up, or "improve" any existing content.
+- Smallest possible addition that communicates the idea.
+
+Instruction: ${userPrompt}`;
 }
 
 // Tries every known structure OpenRouter/Gemini uses to return an image.
