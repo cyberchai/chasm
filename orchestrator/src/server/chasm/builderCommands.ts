@@ -4,6 +4,8 @@ import { appendPath, getEnv, type EnvSource } from "../env.js";
 export type ChasmBuilderResult = {
   status: "queued" | "completed" | "failed";
   summary: string;
+  /** True when the edit produced a real, committed change to the site. */
+  committed?: boolean;
   previewUrl?: string;
   projectId?: string;
 };

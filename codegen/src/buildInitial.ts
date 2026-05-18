@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -7,7 +7,6 @@ import type { BusinessProfile, EditResult } from "../../shared/types.js";
 import { DEFAULT_TEMPLATE_DIR, siteDir, profilePath } from "./paths.js";
 import { gitInit } from "./git.js";
 import { startSite, DEFAULT_VITE_PORT } from "./siteProcess.js";
-import { profileToContentSource } from "./profileToContent.js";
 
 const exec = promisify(execFile);
 
@@ -20,13 +19,12 @@ export interface BuildInitialOptions {
   /** Skip starting the Vite dev server. */
   skipVite?: boolean;
   /**
-   * Keep the template's own `src/content.ts` instead of generating it from the
-   * profile. The template ships a typecheck-clean, richly-shaped `content.ts`;
-   * `profileToContentSource` only emits the bare profile and will not satisfy
-   * the current template's components. Set this so the initial site is always
-   * build-green and let `applyEdit` customise it.
+   * Preset id to seed the site's `src/content.ts`. The build copies
+   * `<template>/src/presets/<preset>.ts` over `src/content.ts`. Each preset is
+   * a self-contained, typecheck-clean drop-in (see `template/src/presets/`).
+   * When omitted, the template's own `src/content.ts` is kept as-is.
    */
-  keepTemplateContent?: boolean;
+  preset?: string;
 }
 
 /**
@@ -70,14 +68,19 @@ export async function buildInitialSite(
       },
     });
 
-    // 3. generate src/content.ts from the profile — unless the caller asked to
-    //    keep the template's own (typecheck-clean) content.ts.
-    if (!opts.keepTemplateContent) {
-      await writeFile(
-        join(dest, "src", "content.ts"),
-        profileToContentSource(profile),
-        "utf8",
-      );
+    // 3. content.ts: copy the requested preset over the clone's content.ts.
+    //    With no preset, the template's own content.ts is kept untouched.
+    if (opts.preset) {
+      const presetFile = join(template, "src", "presets", `${opts.preset}.ts`);
+      if (!existsSync(presetFile)) {
+        return {
+          ok: false,
+          summary: "",
+          committed: false,
+          error: `unknown preset "${opts.preset}" — no file at ${presetFile}`,
+        };
+      }
+      await cp(presetFile, join(dest, "src", "content.ts"));
     }
 
     // 4. install deps (the template ships a .gitignore for node_modules)

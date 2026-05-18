@@ -46,6 +46,23 @@ export type AgentPhoneWebhookHandlerOptions = {
   webhookSecret?: string;
 };
 
+/**
+ * Site edits committed since the last call ended. The post-call recap drains
+ * this so the owner gets a text of what actually changed. One business for the
+ * demo, so a flat list is enough.
+ */
+const callEdits: string[] = [];
+
+function recordCallEdit(result: ChasmBuilderResult): void {
+  if (result.status === "completed" && result.committed && result.summary.trim()) {
+    callEdits.push(result.summary.trim());
+  }
+}
+
+function takeCallEdits(): string[] {
+  return callEdits.splice(0, callEdits.length);
+}
+
 export async function handleAgentPhoneWebhookRequest({
   headers,
   rawBody,
@@ -158,6 +175,7 @@ function routeVerifiedAgentPhoneEvent({
 
   if (event === "agent.call_ended") {
     logCallEnded(payload, eventId, log);
+    runInBackground(() => sendCallRecap(payload, options, env, log), log);
     return textResponse(200, "OK");
   }
 
@@ -200,6 +218,7 @@ async function processTextBuilderCommand(
   }
 
   const result = await processCommand(command, options, env, log);
+  recordCallEdit(result);
   const body = finalTextMessage(result);
 
   try {
@@ -222,10 +241,9 @@ async function* voiceResponseStream(
 ): AsyncIterable<string> {
   yield `${JSON.stringify({ text: "Got it — Chasm is updating the site now.", interim: true })}\n`;
 
-  runInBackground(
-    () => processCommand(command, options, env, log),
-    log,
-  );
+  runInBackground(async () => {
+    recordCallEdit(await processCommand(command, options, env, log));
+  }, log);
 
   // Leading space: AgentPhone concatenates the interim and final chunks, so
   // without it the two sentences run together ("now.Keep going").
@@ -266,6 +284,57 @@ function logCallEnded(payload: unknown, eventId: string, log: ChasmLogger): void
     summary: stringField(data, "summary"),
     transcript: data.transcript,
   });
+}
+
+/**
+ * After a call ends, text the owner a short recap — just the concrete site
+ * edits codegen committed during the session, one tight line each.
+ */
+async function sendCallRecap(
+  payload: unknown,
+  options: AgentPhoneWebhookHandlerOptions,
+  env: EnvSource,
+  log: ChasmLogger,
+): Promise<void> {
+  const data = recordField(payload, "data");
+  const toNumber = stringField(data, "from");
+  const edits = takeCallEdits();
+
+  if (!toNumber) {
+    log.warn("call_ended had no caller number — skipping recap", { edits: edits.length });
+    return;
+  }
+
+  const numberId = stringField(data, "numberId") || getEnv("AGENTPHONE_NUMBER_ID", env);
+  const header = `📞 Call recap · ${formatCallDuration(data.durationSeconds)}`;
+  const body =
+    edits.length > 0
+      ? [header, ...edits.map((edit) => `• ${shortenEdit(edit)}`)].join("\n")
+      : `${header} — no changes saved.`;
+
+  const sendMessage = options.sendMessage ?? defaultSendAgentPhoneMessage;
+  try {
+    await sendMessage({ body, env, numberId, toNumber });
+    log.info("Sent post-call recap", { toNumber, edits: edits.length });
+  } catch (error) {
+    log.error("Failed to send post-call recap", error);
+  }
+}
+
+/** Trim a codegen edit summary to one short clause for the recap. */
+function shortenEdit(summary: string, maxLength = 90): string {
+  const firstSentence = summary.trim().split(/(?<=[.!?])\s/)[0]?.trim() ?? summary.trim();
+  if (firstSentence.length <= maxLength) {
+    return firstSentence;
+  }
+  return `${firstSentence.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function formatCallDuration(seconds: unknown): string {
+  const total = typeof seconds === "number" && seconds > 0 ? Math.round(seconds) : 0;
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return minutes > 0 ? `${minutes}m ${secs}s` : `${secs}s`;
 }
 
 function logReaction(payload: unknown, eventId: string, log: ChasmLogger): void {
