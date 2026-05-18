@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { URL } from "node:url";
 import { handleAgentPhoneWebhookRequest } from "./agentphone/webhook.js";
 import { getWalletStatus } from "./integrations/sponge.js";
-import { searchMerchantKnowledge, buildContextFromResults } from "./integrations/moss.js";
 import { logger } from "./logger.js";
 
 const AGENTPHONE_WEBHOOK_PATHS = new Set([
@@ -45,27 +44,6 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  // Moss semantic search endpoint — demo real-time retrieval
-  if (request.method === "POST" && url.pathname === "/api/moss/search") {
-    try {
-      const rawBody = await readRawBody(request);
-      const { merchantId = "demo", query } = JSON.parse(rawBody);
-      if (!query) {
-        response.writeHead(400, { "Content-Type": "application/json" });
-        response.end(JSON.stringify({ error: "query is required" }));
-        return;
-      }
-      const { results, searchTimeMs } = await searchMerchantKnowledge(merchantId, query);
-      const context = buildContextFromResults(results);
-      response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ results, searchTimeMs, context }, null, 2));
-    } catch (error) {
-      response.writeHead(500, { "Content-Type": "application/json" });
-      response.end(JSON.stringify({ error: "Moss search failed" }));
-    }
-    return;
-  }
-
   response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   response.end("Not Found");
 });
@@ -75,7 +53,6 @@ server.listen(PORT, () => {
   logger.info("Endpoints:");
   logger.info("  GET  /health                 — health check");
   logger.info("  GET  /api/wallet/status       — Sponge wallet status");
-  logger.info("  POST /api/moss/search          — Moss real-time semantic search");
   logger.info("  POST /api/agentphone/webhook  — AgentPhone webhooks");
 });
 

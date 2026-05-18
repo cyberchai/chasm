@@ -7,8 +7,3 @@ export {
   storeConversation,
   getMerchantContext,
 } from "./supermemory.js";
-export {
-  createMerchantIndex,
-  searchMerchantKnowledge,
-  buildContextFromResults,
-} from "./moss.js";
