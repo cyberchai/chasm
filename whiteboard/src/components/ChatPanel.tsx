@@ -39,9 +39,8 @@ export default function ChatPanel({ messages, mode, onSend }: ChatPanelProps) {
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2.5 min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-4">
-            <div className="text-2xl">✏️</div>
             <p className="text-xs text-gray-400 leading-relaxed">
-              Draw something on the canvas, then describe what you want to change
+              Draw on the canvas, then describe what you want to change
             </p>
           </div>
         )}
