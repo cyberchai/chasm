@@ -7,6 +7,7 @@
   },
   "dependencies": {
     "@chasm/codegen": "*",
+    "@moss-dev/moss": "^1.0.2",
     "@paysponge/sdk": "^0.1.94",
     "agentphone": "^1.0.10",
     "supermemory": "^4.21.1"

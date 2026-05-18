@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ChasmBuilderCommand } from "../agentphone/types.js";
 import type { EnvSource } from "../env.js";
 import { getEnv } from "../env.js";
-import { ingestBusinessProfile, storeConversation, logMerchantPayout } from "../integrations/index.js";
+import { ingestBusinessProfile, storeConversation, logMerchantPayout, createMerchantIndex } from "../integrations/index.js";
 import { logger, type ChasmLogger } from "../logger.js";
 import {
   inferProjectId,
@@ -143,6 +143,33 @@ export async function processBuilderCommand(
         env,
         log,
       ).catch((err) => log.error("Background Supermemory ingest failed", { error: err }));
+
+      // Also create a Moss real-time semantic search index for the ops agent
+      // This enables sub-10ms retrieval during customer calls
+      createMerchantIndex(
+        projectId,
+        {
+          name: "Rose & Thorn",
+          type: "florist",
+          description:
+            "We are a neighborhood florist crafting thoughtful arrangements from locally sourced blooms. Every bouquet tells a story — from garden roses to wild seasonal stems, designed to bring warmth into your space.",
+          products: [
+            { name: "Spring Bouquet", price: 4500, description: "Bright seasonal blooms in soft pastel tones" },
+            { name: "Bridal Whites", price: 8500, description: "Elegant white arrangement for special occasions" },
+            { name: "Dried Botanicals", price: 5500, description: "Long-lasting dried stems, beautifully arranged" },
+            { name: "Garden Style", price: 6500, description: "Loose, natural arrangement with garden roses" },
+            { name: "Moody Florals", price: 7200, description: "Rich, dark tones for a dramatic statement" },
+            { name: "Single Stem Wrap", price: 2800, description: "Minimalist single bloom, gift-wrapped" },
+          ],
+          contact: {
+            phone: "(555) 123-4567",
+            address: "42 Bloom Street, Portland, OR 97201",
+            hours: "Mon–Sat 9am–6pm · Sun 10am–4pm",
+          },
+        },
+        env,
+        log,
+      ).catch((err) => log.error("Background Moss index creation failed", { error: err }));
     }
     // Stage 2: iMessage Product Photo Ingestion
     else if (command.channel === "imessage" && command.mediaUrls.length > 0) {

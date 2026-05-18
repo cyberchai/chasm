@@ -13,7 +13,10 @@ export type ChasmEnvName =
   | "SPONGE_API_KEY"
   | "SUPERMEMORY_API_KEY"
   | "STRIPE_SECRET_KEY"
-  | "STRIPE_PUBLISHABLE_KEY";
+  | "STRIPE_PUBLISHABLE_KEY"
+  | "MOSS_PROJECT_ID"
+  | "MOSS_PROJECT_KEY"
+  | "MOSS_INDEX_NAME";
 
 export function getEnv(name: ChasmEnvName, env: EnvSource = process.env): string | undefined {
   const value = env[name];
