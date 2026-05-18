@@ -220,7 +220,14 @@ export async function processBuilderCommand(
 
     ingestBusinessProfile(
       projectId,
-      { name: "New Business", type: preset, description: editInstruction },
+      {
+        name: "New Business",
+        type: preset,
+        description: editInstruction,
+        products: [],
+        contact: { phone: "", address: "", hours: "" },
+        vibe: [],
+      },
       env,
       log,
     ).catch((err) => log.error("Background Supermemory ingest failed", { error: err }));

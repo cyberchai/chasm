@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callOpenRouter } from "@/lib/openrouter";
+import { callOpenRouter, hasOpenRouterApiKey } from "@/lib/openrouter";
 
 function buildPrompt(userPrompt: string): string {
   return `You are editing a low-fidelity website wireframe. Speed is critical — keep output as simple as possible.
@@ -58,6 +58,17 @@ function extractImageUrl(message: Record<string, any>): string | null {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!hasOpenRouterApiKey()) {
+      return NextResponse.json(
+        {
+          imageUrl: null,
+          textContent: "OPENROUTER_API_KEY is not set",
+          _raw: null,
+        },
+        { status: 503 }
+      );
+    }
+
     const { image, prompt } = await req.json();
 
     const res = await callOpenRouter({

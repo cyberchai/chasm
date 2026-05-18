@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callOpenRouter } from "@/lib/openrouter";
+import { callOpenRouter, hasOpenRouterApiKey } from "@/lib/openrouter";
 import type { ChatMessage } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -8,6 +8,14 @@ export async function POST(req: NextRequest) {
       messages: ChatMessage[];
       canvasSnapshot: string;
     };
+
+    if (!hasOpenRouterApiKey()) {
+      return NextResponse.json({
+        reply: "I can see the whiteboard, but AI suggestions need OPENROUTER_API_KEY in the repo .env.",
+        shouldGenerate: false,
+        subPrompts: null,
+      });
+    }
 
     // Only attach the canvas image to the most recent user message.
     // Including snapshots in every historical message inflates the request body

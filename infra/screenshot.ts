@@ -3,10 +3,14 @@
 // Returns: path to the saved PNG
 
 import { chromium } from 'playwright';
+import { existsSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 const SITE_PORT = 5173;
+const MACOS_CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_ROOT = path.resolve(__dirname, '..', 'data');
 
 /**
@@ -23,7 +27,7 @@ export async function captureSite(businessId: string = 'demo'): Promise<string> 
   const filename = `site-${timestamp}.png`;
   const outputPath = path.join(screenshotDir, filename);
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchBrowser();
   const page = await browser.newPage({
     viewport: { width: 1440, height: 900 },
   });
@@ -47,6 +51,17 @@ export async function captureSite(businessId: string = 'demo'): Promise<string> 
     return outputPath;
   } finally {
     await browser.close();
+  }
+}
+
+async function launchBrowser() {
+  try {
+    return await chromium.launch({ headless: true });
+  } catch (error) {
+    if (existsSync(MACOS_CHROME)) {
+      return chromium.launch({ headless: true, executablePath: MACOS_CHROME });
+    }
+    throw error;
   }
 }
 

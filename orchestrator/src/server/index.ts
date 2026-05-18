@@ -3,6 +3,13 @@ import { URL } from "node:url";
 import { handleAgentPhoneWebhookRequest } from "./agentphone/webhook.js";
 import { getWalletStatus } from "./integrations/sponge.js";
 import { logger } from "./logger.js";
+import {
+  WHITEBOARD_ENDPOINTS,
+  receiveWhiteboard,
+  sendProfile,
+  sendScreenshot,
+  sendWhiteboardPreflight,
+} from "./whiteboard.js";
 
 const AGENTPHONE_WEBHOOK_PATHS = new Set([
   "/api/agentphone/webhook",
@@ -13,6 +20,11 @@ const PORT = Number(process.env.PORT ?? 3000);
 
 const server = createServer(async (request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+
+  if (request.method === "OPTIONS" && WHITEBOARD_ENDPOINTS.has(url.pathname)) {
+    sendWhiteboardPreflight(response);
+    return;
+  }
 
   if (request.method === "GET" && url.pathname === "/health") {
     response.writeHead(200, { "Content-Type": "application/json" });
@@ -30,6 +42,21 @@ const server = createServer(async (request, response) => {
       response.writeHead(500, { "Content-Type": "application/json" });
       response.end(JSON.stringify({ error: "Failed to fetch wallet status" }));
     }
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/profile") {
+    await sendProfile(response, url.searchParams.get("b") ?? "demo");
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/screenshot") {
+    await sendScreenshot(response, url.searchParams.get("b") ?? "demo");
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/webhook/whiteboard") {
+    await receiveWhiteboard(await readRawBody(request), response);
     return;
   }
 
@@ -53,7 +80,19 @@ server.listen(PORT, () => {
   logger.info("Endpoints:");
   logger.info("  GET  /health                 — health check");
   logger.info("  GET  /api/wallet/status       — Sponge wallet status");
+  logger.info("  GET  /api/profile             — current business profile");
+  logger.info("  GET  /api/screenshot          — current site screenshot");
+  logger.info("  POST /webhook/whiteboard      — whiteboard PNG submissions");
   logger.info("  POST /api/agentphone/webhook  — AgentPhone webhooks");
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    logger.error(`Port ${PORT} is already in use. Stop the old orchestrator before running npm run dev.`);
+    process.exitCode = 1;
+    return;
+  }
+  logger.error(error);
 });
 
 async function readRawBody(request: IncomingMessage): Promise<string> {

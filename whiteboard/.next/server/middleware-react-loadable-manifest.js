@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{}"
+self.__REACT_LOADABLE_MANIFEST="{\"app/board/BoardClient.tsx -> @/components/Canvas\":{\"id\":\"app/board/BoardClient.tsx -> @/components/Canvas\",\"files\":[\"static/css/_app-pages-browser_src_components_Canvas_tsx.css\",\"static/chunks/_app-pages-browser_src_components_Canvas_tsx.js\"]}}"

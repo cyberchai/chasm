@@ -110,23 +110,31 @@ const arrowFor: Record<Step["callout"], string | null> = {
 
 export default function TutorialOverlay({ onDone }: { onDone: () => void }) {
   const maskId = useId().replace(/:/g, "");
+  const [mounted, setMounted] = useState(false);
   const [idx, setIdx] = useState(0);
   const [rect, setRect] = useState<Rect>({ x: 0, y: 0, w: 0, h: 0 });
   const step = STEPS[idx];
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     const measure = () => setRect(measureStep(step));
     measure();
     const t = setTimeout(measure, 80);
     window.addEventListener("resize", measure);
     return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
-  }, [idx, step]);
+  }, [idx, mounted, step]);
 
   const advance = () => idx < STEPS.length - 1 ? setIdx(i => i + 1) : onDone();
   const isLast = idx === STEPS.length - 1;
 
   const pos = calloutStyle(rect, step.callout);
   const arrow = arrowFor[step.callout];
+
+  if (!mounted) return null;
 
   return (
     <motion.div
@@ -145,11 +153,13 @@ export default function TutorialOverlay({ onDone }: { onDone: () => void }) {
         <defs>
           <mask id={maskId}>
             <rect width="100%" height="100%" fill="white" />
-            <motion.rect
+            <rect
               fill="black"
               rx={16}
-              animate={{ x: rect.x, y: rect.y, width: rect.w, height: rect.h }}
-              transition={spring}
+              x={rect.x}
+              y={rect.y}
+              width={rect.w}
+              height={rect.h}
             />
           </mask>
         </defs>

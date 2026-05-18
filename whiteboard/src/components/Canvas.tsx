@@ -166,8 +166,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const shape = editor.getShape<TLImageShape>(update.shapeId);
       if (shape?.props.assetId) {
         const asset = editor.getAsset(shape.props.assetId);
-        if (asset) {
-          editor.store.put([{ ...asset, props: { ...asset.props, src: update.diffPng } }]);
+        if (asset?.type === "image") {
+          editor.updateAssets([
+            { id: asset.id, type: "image", props: { src: update.diffPng } },
+          ]);
         }
       }
       editor.updateShape({ id: update.shapeId, type: "image", isLocked: true });

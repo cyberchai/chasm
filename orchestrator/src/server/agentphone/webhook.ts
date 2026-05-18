@@ -63,6 +63,34 @@ function takeCallEdits(): string[] {
   return callEdits.splice(0, callEdits.length);
 }
 
+/** Local URLs for the two ways an owner can work on their site. */
+const WHITEBOARD_URL = "http://localhost:3001";
+const SITE_URL = "http://localhost:5173";
+
+/** Greeting / menu words that make the agent reply with the two option links. */
+const MENU_WORDS = new Set([
+  "hi", "hello", "hey", "yo", "start", "menu", "options", "option", "links", "link", "help",
+]);
+
+function isMenuRequest(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[!.?\s]+$/, "");
+  return MENU_WORDS.has(normalized);
+}
+
+function optionsMenuBody(): string {
+  return [
+    "How do you want to work on your site?",
+    "",
+    "🎨 Draw a design — sketch your layout:",
+    WHITEBOARD_URL,
+    "",
+    "✏️ Edit your current site — see it live:",
+    SITE_URL,
+    "",
+    "Or just text me a change and I'll make it.",
+  ].join("\n");
+}
+
 export async function handleAgentPhoneWebhookRequest({
   headers,
   rawBody,
@@ -151,6 +179,16 @@ function routeVerifiedAgentPhoneEvent({
       return textResponse(202, "Ignored");
     }
 
+    // A bare greeting / "menu" → offer the two ways to work on the site,
+    // instead of treating it as a site-edit instruction.
+    if (isMenuRequest(command.text)) {
+      runInBackground(
+        () => sendOptionsMenu(command, getAgentPhoneNumberId(payload), options, env, log),
+        log,
+      );
+      return textResponse(200, "OK");
+    }
+
     runInBackground(
       () => processTextBuilderCommand(command, getAgentPhoneNumberId(payload), options, env, log),
       log,
@@ -230,6 +268,28 @@ async function processTextBuilderCommand(
     });
   } catch (error) {
     log.error("Failed to send AgentPhone builder completion message", error);
+  }
+}
+
+/** Text the owner the two ways to work on their site, with local links. */
+async function sendOptionsMenu(
+  command: ChasmBuilderCommand,
+  numberId: string | undefined,
+  options: AgentPhoneWebhookHandlerOptions,
+  env: EnvSource,
+  log: ChasmLogger,
+): Promise<void> {
+  const sendMessage = options.sendMessage ?? defaultSendAgentPhoneMessage;
+  try {
+    await sendMessage({
+      body: optionsMenuBody(),
+      env,
+      numberId,
+      toNumber: command.fromNumber,
+    });
+    log.info("Sent options menu", { toNumber: command.fromNumber });
+  } catch (error) {
+    log.error("Failed to send options menu", error);
   }
 }
 
