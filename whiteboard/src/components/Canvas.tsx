@@ -167,8 +167,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (shape?.props.assetId) {
         const asset = editor.getAsset(shape.props.assetId);
         if (asset?.type === "image") {
+          // Keep the existing props (w/h/mimeType/…) — overriding only `src`,
+          // otherwise tldraw validation rejects the asset for a missing w/h.
           editor.updateAssets([
-            { id: asset.id, type: "image", props: { src: update.diffPng } },
+            { id: asset.id, type: "image", props: { ...asset.props, src: update.diffPng } },
           ]);
         }
       }

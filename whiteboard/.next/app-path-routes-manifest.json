@@ -1,8 +1,0 @@
-{
-  "/api/suggest/route": "/api/suggest",
-  "/api/chat/route": "/api/chat",
-  "/_not-found/page": "/_not-found",
-  "/api/debug-suggest/route": "/api/debug-suggest",
-  "/board/page": "/board",
-  "/page": "/"
-}

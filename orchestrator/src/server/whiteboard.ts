@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ServerResponse } from "node:http";
-import { applyEdit, dataDir, profilePath } from "@chasm/codegen";
+import { applyEdit, buildInitialSite, dataDir, profilePath, siteDir } from "@chasm/codegen";
 import { captureSite } from "../../../infra/screenshot.js";
 import type { WhiteboardSubmission } from "../../../shared/types.js";
 import { logger } from "./logger.js";
@@ -12,6 +12,9 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
+
+/** The live site URL handed back to the whiteboard once a build finishes. */
+const SITE_URL = "http://localhost:5173";
 
 export const WHITEBOARD_ENDPOINTS = new Set([
   "/api/profile",
@@ -91,37 +94,93 @@ export async function receiveWhiteboard(rawBody: string, response: ServerRespons
   const whiteboardPng = join(dir, `whiteboard-${Date.now()}.png`);
   await writeFile(whiteboardPng, dataUrlToBuffer(body.pngBase64));
 
-  void applyWhiteboardEdit(body.businessId, whiteboardPng);
+  // Build synchronously — the whiteboard holds this request open, shows
+  // "building…", and gets the site URL back once the build finishes.
+  const result = await applyWhiteboardEdit(body.businessId, whiteboardPng);
 
-  sendJson(response, 202, { ok: true, queued: true });
+  if (!result.ok) {
+    sendJson(response, 500, { ok: false, error: result.error ?? "Whiteboard build failed" });
+    return;
+  }
+
+  sendJson(response, 200, { ok: true, url: SITE_URL, summary: result.summary });
 }
 
-async function applyWhiteboardEdit(businessId: string, whiteboardPng: string): Promise<void> {
+async function applyWhiteboardEdit(
+  businessId: string,
+  whiteboardPng: string,
+): Promise<{ ok: boolean; summary?: string; error?: string }> {
   try {
-    const currentScreenshot = await captureOrLatestScreenshot(businessId).catch((error) => {
-      logger.warn("Continuing whiteboard edit without current screenshot", { businessId, error });
-      return undefined;
-    });
+    // Whiteboard-first: with no site yet, stand up a baseline to build onto.
+    if (!existsSync(siteDir(businessId))) {
+      logger.info("No site yet — building a baseline before the whiteboard build", { businessId });
+      await ensureBaselineSite(businessId);
+    }
 
     const result = await applyEdit({
       businessId,
-      instruction: "see whiteboard",
+      instruction:
+        "The attached whiteboard image is the owner's hand-drawn design for " +
+        "their website — a from-scratch design mockup, not annotations on an " +
+        "existing page. Rebuild the site to match it on two levels:\n" +
+        "1. LAYOUT — the same sections in the same top-to-bottom order, with " +
+        "matching headings, copy blocks, and overall structure.\n" +
+        "2. STYLE — read the drawing's semantic cues and apply them. Capture " +
+        "the colour palette (colours actually drawn, colours named in labels, " +
+        "or the palette implied by the sketch's mood and the kind of " +
+        "business), the typography (heading weight, serif vs sans, casing, " +
+        "letter-spacing), and the spacing/formatting feel. If the sketch is " +
+        "monochrome, infer a palette that fits its style. Apply this by " +
+        "editing src/content.ts `colors`, src/theme.ts, and component Tailwind " +
+        "classes so the rendered site genuinely reflects that look.\n" +
+        "Keep the build green — it must typecheck with no broken imports.",
       whiteboardPng,
-      currentScreenshot,
     });
 
     if (!result.ok) {
-      logger.error("Whiteboard edit failed", { businessId, error: result.error });
-      return;
+      logger.error("Whiteboard build failed", { businessId, error: result.error });
+      return { ok: false, error: result.error };
     }
 
-    logger.info("Whiteboard edit applied", {
+    logger.info("Whiteboard build applied", {
       businessId,
       committed: result.committed,
       summary: result.summary,
     });
+    return { ok: true, summary: result.summary };
   } catch (error) {
-    logger.error("Whiteboard edit crashed", { businessId, error });
+    logger.error("Whiteboard build crashed", { businessId, error });
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/** Stand up a typecheck-clean baseline site for the whiteboard design to build onto. */
+async function ensureBaselineSite(businessId: string): Promise<void> {
+  await mkdir(dataDir(businessId), { recursive: true });
+  if (!existsSync(profilePath(businessId))) {
+    await writeFile(
+      profilePath(businessId),
+      JSON.stringify(
+        {
+          businessId,
+          name: "New Business",
+          type: "shop",
+          vibe: [],
+          colors: [],
+          tagline: "",
+          products: [],
+          contact: { phone: "", address: "", hours: "" },
+          sections: ["hero", "products", "about", "contact", "order"],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+  }
+  const built = await buildInitialSite(businessId, { preset: "florist" });
+  if (!built.ok) {
+    throw new Error(built.error ?? "baseline build failed");
   }
 }
 

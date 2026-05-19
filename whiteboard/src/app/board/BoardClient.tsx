@@ -24,9 +24,9 @@ const spring = { type: "spring" as const, stiffness: 300, damping: 28 };
 const panel = "bg-white border border-gray-900 shadow-[2px_2px_0px_rgba(0,0,0,0.15)]";
 
 export default function BoardClient({ businessId }: { businessId: string }) {
-  const orchestratorUrl =
-    process.env.NEXT_PUBLIC_ORCHESTRATOR_URL ?? "http://localhost:3000";
-  const screenshotUrl = `${orchestratorUrl}/api/screenshot?b=${businessId}`;
+  // The whiteboard is the "draw from scratch" surface — start on a blank
+  // canvas. An empty screenshotUrl makes Canvas seed a blank white background.
+  const screenshotUrl = "";
 
   const canvasRef = useRef<CanvasHandle>(null);
 
@@ -36,6 +36,7 @@ export default function BoardClient({ businessId }: { businessId: string }) {
   const [status, setStatus] = useState<Status>("idle");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [siteUrl, setSiteUrl] = useState<string | null>(null);
   const [generatingTotal, setGeneratingTotal] = useState<number | null>(null);
   const [showTutorial, setShowTutorial] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
@@ -105,11 +106,15 @@ export default function BoardClient({ businessId }: { businessId: string }) {
     setSubmitting(true);
     try {
       const base64 = (await canvasRef.current?.captureForSubmit()) ?? "";
-      await submitFinalPng(businessId, base64);
+      const result = await submitFinalPng(businessId, base64);
+      setSiteUrl(result.url ?? null);
       setSubmitted(true);
     } catch (err) {
       console.error("Submit failed:", err);
-      alert("Submit failed — is the orchestrator running?");
+      alert(
+        "Build failed — check the orchestrator. " +
+          (err instanceof Error ? err.message : "")
+      );
     } finally {
       setSubmitting(false);
     }
@@ -178,14 +183,17 @@ export default function BoardClient({ businessId }: { businessId: string }) {
       >
         <AnimatePresence mode="wait">
           {submitted ? (
-            <motion.span
+            <motion.a
               key="submitted"
+              href={siteUrl ?? "http://localhost:5173"}
+              target="_blank"
+              rel="noreferrer"
               initial={{ scale: 0.85, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md ${panel} text-xs font-semibold text-gray-900 tracking-wide`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md bg-gray-900 text-white text-xs font-semibold tracking-wide border border-gray-900 shadow-[2px_2px_0px_rgba(0,0,0,0.2)] hover:bg-gray-700 transition-colors whitespace-nowrap`}
             >
-              Submitted
-            </motion.span>
+              View your site →
+            </motion.a>
           ) : (
             <motion.button
               key="submit"
@@ -195,7 +203,7 @@ export default function BoardClient({ businessId }: { businessId: string }) {
               whileTap={canSubmit ? { scale: 0.97 } : {}}
               className={`px-4 py-2 rounded-md bg-gray-900 text-white text-xs font-semibold tracking-wide border border-gray-900 shadow-[2px_2px_0px_rgba(0,0,0,0.2)] hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap`}
             >
-              {submitting ? "Submitting…" : "Submit"}
+              {submitting ? "Building your site…" : "Submit"}
             </motion.button>
           )}
         </AnimatePresence>

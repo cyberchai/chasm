@@ -52,7 +52,9 @@ export async function runEditAgent(opts: RunEditAgentOptions): Promise<string> {
   }
   if (whiteboardPng) {
     images.push({
-      label: "the owner's whiteboard — annotations drawn on top of the current site",
+      label:
+        "the owner's hand-drawn design mockup of how the finished website should " +
+        "look — rebuild the site's layout and sections to match it",
       path: whiteboardPng,
     });
   }
